@@ -18,8 +18,8 @@ namespace Config
 
     namespace AppTask
     {
-        constexpr unsigned long BOOT_TIMEOUT_DURATION = 120000; // If boot time exceeds this time the app goes into error state.
-        constexpr unsigned long SHUTDOWN_DURATION = 30000;      // How long to wait for shutdown to turn off SBC.
+        constexpr unsigned long BOOT_TIMEOUT_DURATION = 240000; // If boot time exceeds this time the app goes into error state.
+        constexpr unsigned long SHUTDOWN_DURATION = 60000;      // How long to wait for shutdown to turn off SBC.
     }
 
     namespace DisplayTask
@@ -40,7 +40,7 @@ namespace Config
 
     namespace Communication
     {
-        constexpr uint8_t SBC_HB_MAX_RETRIES = 30;          // How many retries of SBC heartbeat until MCU decides that it's disconnected.
+        constexpr uint8_t SBC_HB_MAX_RETRIES = 10;          // How many retries of SBC heartbeat until MCU decides that it's disconnected.
         constexpr unsigned long SBC_HB_CHECK_PERIOD = 2000; // How frequently check for SBC heartbeat.
 
         constexpr uint8_t DEVICE_ID = 1; // Slave ID

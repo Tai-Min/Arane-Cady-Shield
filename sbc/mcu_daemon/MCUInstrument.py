@@ -1,10 +1,14 @@
-import minimalmodbus
-from threading import Lock
+"""MODBUS instrument for Cady shield"""
 import logging
+from threading import Lock
+import minimalmodbus
 
 logger = logging.getLogger(__name__)
 
+
 class MCUInstrument:
+    """MODBUS instrument for Cady shield"""
+
     __Q_SHUTDOWN_FLAG_ADDR: int = 0
     __Q_DISPLAY_STATE_ADDR: int = 1
     __Q_JOY1_ENA_FLAG_ADDR: int = 2
@@ -32,7 +36,7 @@ class MCUInstrument:
     __sbc_heartbeat_cntr: int = 0
     __mcu_heartbeat_cntr: int = 0
 
-    def __init__(self, port, timeout, slave_addr) -> None:
+    def __init__(self, port: str, timeout: int, slave_addr: int) -> None:
         self.__instrument_mtx = Lock()
         self.__client = minimalmodbus.Instrument(port, slave_addr)
         self.__client.serial.timeout = timeout
@@ -43,7 +47,8 @@ class MCUInstrument:
         with self.__instrument_mtx:
             try:
                 self.__client.write_register(
-                    self.__AQ_SBC_HB_CNTR_ADDR, self.__sbc_heartbeat_cntr, functioncode=self.__PRESET_SINGLE_REGISTER)
+                    self.__AQ_SBC_HB_CNTR_ADDR, self.__sbc_heartbeat_cntr,
+                    functioncode=self.__PRESET_SINGLE_REGISTER)
 
                 self.__sbc_heartbeat_cntr += 1
                 logger.debug("SBC heartbeat sent")
@@ -80,7 +85,7 @@ class MCUInstrument:
             except IOError:
                 return False
 
-    def __write_bit(self, addr, val) -> bool:
+    def __write_bit(self, addr: int, val: bool) -> bool:
         with self.__instrument_mtx:
             try:
                 self.__client.write_bit(
@@ -107,7 +112,7 @@ class MCUInstrument:
         """Turn Joy 2 on or off"""
         return self.__write_bit(self.__Q_JOY2_ENA_FLAG_ADDR, state)
 
-    def __write_register(self, addr, val) -> bool:
+    def __write_register(self, addr: int, val: int) -> bool:
         """Set PWM value of Joy 1 LEDs"""
         with self.__instrument_mtx:
             try:
@@ -118,7 +123,7 @@ class MCUInstrument:
             except IOError:
                 return False
 
-    def set_joy1_brightness(self, val) -> bool:
+    def set_joy1_brightness(self, val: int) -> bool:
         """Set PWM value of Joy 1 LEDs"""
         if val > 255:
             val = 255
@@ -127,7 +132,7 @@ class MCUInstrument:
 
         self.__write_register(self.__AQ_JOY1_LED_BRIGHTNESS_ADDR, val)
 
-    def set_joy2_brightness(self, val) -> bool:
+    def set_joy2_brightness(self, val: int) -> bool:
         """Set PWM value of Joy 2 LEDs"""
         if val > 255:
             val = 255

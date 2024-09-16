@@ -1,10 +1,10 @@
+"""Daemon that manages communication with MCU"""
 from time import sleep
 from threading import Thread, Event
 import logging
-import pyaml
 import subprocess
 import os
-import signal
+import pyaml
 from MCUInstrument import MCUInstrument
 
 logger = logging.getLogger(__name__)
@@ -16,23 +16,19 @@ class Daemon:
 
     __stop_evt: Event
     __mcu_err_evt: Event
+
     __heartbeat_thread: Thread
 
     __instrument: MCUInstrument
     __game_sel = -1
+    __process = None
 
     def __init__(self) -> None:
         self.__stop_evt = Event()
         self.__mcu_err_evt = Event()
         self.__heartbeat_thread = Thread(target=self.__heartbeat_task)
-        self.__process = None
 
-        self.__num_players = 0
-        self.__display_state = False
-        self.__joy1_brightness = 0
-        self.__joy2_brightness = 0
-
-    def start(self, instrument_port: str, instrument_timeout, instrument_addr: int) -> None:
+    def start(self, instrument_port: str, instrument_timeout: int, instrument_addr: int) -> None:
         """Start the daemon"""
         logger.info("Starting MCU daemon")
 
@@ -56,37 +52,29 @@ class Daemon:
         self.__stop_evt.set()
         self.__heartbeat_thread.join()
 
+    def notify_shutdown(self) -> None:
+        """Notify MCU about system shutdown"""
+        self.__instrument.set_shutdown_flag()
+
     def __general_task(self) -> None:
 
         sleep(3)  # Wait for serial to open
+
+        self.__enable_joys(0)
+
         while not self.__stop_evt.is_set() and not self.__mcu_err_evt.is_set():
             sleep(1)
 
             shutdown_req = self.__instrument.get_shutdown_request()
             if shutdown_req:
                 logger.info("Shutdown requested via MCU, shutting down")
-                # TODO: shutdown in a nice way
+                os.system("shutdown -h now")
+                # script should exit on shutdown anyway and set some flags in MCU by doing so
 
             game_sel = self.__instrument.get_gamesel_value()
             if game_sel != self.__game_sel:
-                self.__game_sel = game_sel
-                logger.info("Game changed to %d", self.__game_sel)
-                self.__load_game(self.__game_sel)
-
-
-            if self.__num_players > 0:
-                self.__instrument.set_joy1_state(True)
-                if self.__num_players > 1:
-                    self.__instrument.set_joy2_state(True)
-                else:
-                    self.__instrument.set_joy2_state(False)
-            else:
-                self.__instrument.set_joy1_state(False)
-
-            self.__instrument.set_joy1_brightness(self.__joy1_brightness)
-            self.__instrument.set_joy2_brightness(self.__joy2_brightness)
-
-            self.__instrument.set_display_state(self.__display_state)
+                logger.info("Game slot changed to %d", game_sel)
+                self.__game_sel = self.__load_game(game_sel)
 
     def __heartbeat_task(self) -> None:
         mcu_retries = 0
@@ -108,23 +96,21 @@ class Daemon:
             logger.debug("Received valid heartbeat from MCU")
             mcu_retries = 0
 
-    def __load_game(self, slot) -> bool:
+    def __load_game(self, slot: int) -> int:
         self.__instrument.set_display_state(False)
 
         sleep(2)
 
-        self.__instrument.set_joy1_brightness(0)
-        self.__instrument.set_joy2_brightness(0)
-        self.__instrument.set_joy1_state(False)
-        self.__instrument.set_joy2_state(False)
+        self.__enable_joys(0)
 
         # Unload previous slot
         if self.__process:
-            os.killpg(os.getpgid(self.__process.pid), signal.SIGTERM)
+            self.__process.kill()
+            self.__process = None
 
         if slot < 0:
             logger.error("Invalid slot: %d", slot)
-            return
+            return - 1
 
         # Load slots.yaml
         try:
@@ -134,23 +120,29 @@ class Daemon:
         except FileNotFoundError as e:
             logger.error("slots.yaml not found: %s", str(e))
             self.__game_sel = -1
-            self.__display_state = False
-            return
+            return -1
+
+        num_players = 0
+        joy1_brightness = 0
+        joy2_brightness = 0
+        settle_time = 0.1
 
         # Use selected slot
         slot = "slot" + str(slot)
         try:
             name = str(config[slot]["name"])
-            self.__num_players = int(config[slot]["players"])
+            num_players = int(config[slot]["players"])
             open_script = str(config[slot]["open_script"])
-            exit_script = str(config[slot]["exit_script"])
-            self.__joy1_brightness = int(config[slot]["joy1_brightness"])
-            self.__joy2_brightness = int(config[slot]["joy2_brightness"])
+
+            joy1_brightness = int(config[slot]["joy1_brightness"])
+            joy2_brightness = int(config[slot]["joy2_brightness"])
+
+            settle_time = int(config[slot]["settle_time"])
+
         except Exception as e:
             logger.error("Processing yaml file failed: %s", str(e))
             self.__game_sel = -1
-            self.__display_state = False
-            return
+            return -1
 
         # Open process from selected slot
         logger.info("Opening %s", name)
@@ -159,12 +151,28 @@ class Daemon:
         except Exception as e:
             logger.error("Failed to load %s", slot)
             self.__game_sel = -1
-            self.__display_state = False
-            return
+            return -1
+
         logger.info("Opened %s", name)
 
-        sleep(5)  # Let the game settle
+        sleep(settle_time)  # Let the game settle
 
-        self.__display_state = True
+        self.__enable_joys(num_players, joy1_brightness, joy2_brightness)
+        self.__instrument.set_display_state(True)
 
-        return True
+        return slot
+
+    def __enable_joys(self, num_players: int, joy1_brightness: int = 0, joy2_brightness: int = 0) -> None:
+        """Set joys on/off and LED brightness"""
+        if num_players > 0:
+            self.__instrument.set_joy1_state(True)
+            self.__instrument.set_joy1_brightness(joy1_brightness)
+            if num_players > 1:
+                self.__instrument.set_joy2_state(True)
+                self.__instrument.set_joy2_brightness(joy2_brightness)
+            else:
+                self.__instrument.set_joy2_state(False)
+                self.__instrument.set_joy2_brightness(0)
+        else:
+            self.__instrument.set_joy1_state(False)
+            self.__instrument.set_joy1_brightness(0)

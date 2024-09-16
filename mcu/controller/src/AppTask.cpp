@@ -173,7 +173,25 @@ namespace App
             break;
         case AppState::CONNECTED:
             g_ledCtrl.setEffect(LightEffectors::Effect::MANUAL);
-            // TODO controllers
+            
+            if(State::getJoy1Enable())
+            {
+                g_joy1.on();
+            }
+            else
+            {
+                g_joy1.off();
+            }
+
+            if(State::getJoy2Enable())
+            {
+                g_joy2.on();
+            }
+            else
+            {
+                g_joy2.off();
+            }
+
             Disp::removeForceOff();
             break;
         case AppState::SHUTTING_DOWN:
@@ -215,7 +233,6 @@ namespace App
         g_sbc.off();
         if (g_pwrBtn.clicked())
         {
-            // g_pwrBtn.clearState();
             setAppState(AppState::BOOTING);
 
             LOG_INFO(F("Booting"));
@@ -254,7 +271,6 @@ namespace App
         }
         if (g_pwrBtn.clicked())
         {
-            // g_pwrBtn.clearState();
             setAppState(AppState::SHUTTING_DOWN);
 
             LOG_INFO(F("Btn sdown"));
@@ -275,7 +291,6 @@ namespace App
     {
         if (g_pwrBtn.clicked())
         {
-            // g_pwrBtn.clearState();
             setAppState(AppState::OFF);
 
             LOG_INFO(F("Btn sdown"));
