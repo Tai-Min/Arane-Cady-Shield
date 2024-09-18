@@ -2,6 +2,7 @@
 import logging
 from threading import Lock
 import minimalmodbus
+import serial
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,9 @@ class MCUInstrument:
 
     def __init__(self, port: str, timeout: int, slave_addr: int) -> None:
         self.__instrument_mtx = Lock()
-        self.__client = minimalmodbus.Instrument(port, slave_addr)
+
+        self.__client = minimalmodbus.Instrument(
+            port, slave_addr, close_port_after_each_call=True)
         self.__client.serial.timeout = timeout
 
     def send_sbc_heartbeat(self) -> bool:
@@ -54,8 +57,8 @@ class MCUInstrument:
                 logger.debug("SBC heartbeat sent")
                 return True
 
-            except IOError:
-                logger.error("Failed to send SBC heartbeat")
+            except serial.SerialException as e:
+                logger.error(e.strerror)
                 return False
 
     def check_mcu_heartbeat(self) -> bool:
@@ -68,11 +71,13 @@ class MCUInstrument:
                     self.__AI_MCU_HB_CNTR_ADDR, functioncode=self.__READ_INPUT_REGISTER)
 
                 if cntr != self.__mcu_heartbeat_cntr:
+                    self.__mcu_heartbeat_cntr = cntr
                     return True
 
                 return False
 
-            except IOError:
+            except serial.SerialException as e:
+                logger.error(e.strerror)
                 return False
 
     def get_shutdown_request(self) -> bool:
@@ -82,7 +87,8 @@ class MCUInstrument:
                 return self.__client.read_bit(
                     self.__I_SHUTDOWN_REQ_ADDR, functioncode=self.__READ_INPUT)
 
-            except IOError:
+            except serial.SerialException as e:
+                logger.error(e.strerror)
                 return False
 
     def __write_bit(self, addr: int, val: bool) -> bool:
@@ -92,7 +98,8 @@ class MCUInstrument:
                     addr, val, functioncode=self.__FORCE_SINGLE_COIL)
                 return True
 
-            except IOError:
+            except serial.SerialException as e:
+                logger.error(e.strerror)
                 return False
 
     def set_shutdown_flag(self) -> bool:
@@ -120,7 +127,8 @@ class MCUInstrument:
                     addr, val, functioncode=self.__PRESET_SINGLE_REGISTER)
                 return True
 
-            except IOError:
+            except serial.SerialException as e:
+                logger.error(e.strerror)
                 return False
 
     def set_joy1_brightness(self, val: int) -> bool:
@@ -147,5 +155,6 @@ class MCUInstrument:
             try:
                 return self.__client.read_register(
                     self.__AI_MCU_GAMESEL_ADDR, functioncode=self.__READ_INPUT_REGISTER)
-            except IOError:
+            except serial.SerialException as e:
+                logger.error(e.strerror)
                 return -1

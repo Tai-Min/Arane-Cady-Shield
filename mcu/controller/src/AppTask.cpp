@@ -157,43 +157,29 @@ namespace App
 
             Disp::forceOff();
 
-            State::setShutdownFlag(false); // Just in case that SBC manages
-                                           // to write this flag again on shutdown
+            Comm::clearShutdownFlag(); // Just in case that SBC manages
+                                       // to write this flag again on shutdown
             State::setShutdownRequest(false);
+            Comm::disconnect();
+
             break;
+
         case AppState::BOOTING:
             g_sbc.on();
             g_joy1.off();
             g_joy2.off();
             g_ledCtrl.setEffect(LightEffectors::Effect::BLINKING);
 
-            Disp::forceOff();
-
             g_bootStamp = millis();
+
             break;
         case AppState::CONNECTED:
             g_ledCtrl.setEffect(LightEffectors::Effect::MANUAL);
-            
-            if(State::getJoy1Enable())
-            {
-                g_joy1.on();
-            }
-            else
-            {
-                g_joy1.off();
-            }
-
-            if(State::getJoy2Enable())
-            {
-                g_joy2.on();
-            }
-            else
-            {
-                g_joy2.off();
-            }
 
             Disp::removeForceOff();
+
             break;
+
         case AppState::SHUTTING_DOWN:
             g_joy1.off();
             g_joy2.off();
@@ -201,22 +187,26 @@ namespace App
 
             Disp::forceOff();
 
-            State::setShutdownFlag(false);
+            Comm::clearShutdownFlag();
             State::setShutdownRequest(true);
+            Comm::disconnect();
 
             g_bootStamp = millis();
 
             break;
+
         case AppState::ERROR:
             g_ledCtrl.setEffect(LightEffectors::Effect::FAST_BLINKING);
             Disp::removeForceOff();
             State::setDisplayState(true); // Force ON to see error cause
 
-            State::setShutdownFlag(false);
+            Comm::clearShutdownFlag();
             State::setShutdownRequest(false);
+            Comm::disconnect();
 
             g_joy1.off();
             g_joy2.off();
+
             break;
         }
     }
@@ -230,7 +220,6 @@ namespace App
 
     void handleOffState()
     {
-        g_sbc.off();
         if (g_pwrBtn.clicked())
         {
             setAppState(AppState::BOOTING);
@@ -257,6 +246,24 @@ namespace App
 
     void handleConnectedState()
     {
+        if (State::getJoy1Enable())
+        {
+            g_joy1.on();
+        }
+        else
+        {
+            g_joy1.off();
+        }
+
+        if (State::getJoy2Enable())
+        {
+            g_joy2.on();
+        }
+        else
+        {
+            g_joy2.off();
+        }
+
         if (!Comm::connected())
         {
             setAppState(AppState::ERROR);

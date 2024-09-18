@@ -4,11 +4,11 @@ import sys
 import logging
 from daemon_impl import Daemon
 
-PORT = "/dev/serial0"
+PORT = "/dev/ttyAMA0"
 TIMEOUT = 0.5
 INSTRUMENT_ADDR = 1
 
-logging.basicConfig(filename='mcu_daemon.log', level=logging.DEBUG)
+logging.basicConfig(filename='mcu_daemon.log', level=logging.INFO)
 logging.getLogger().addHandler(logging.StreamHandler())
 
 logger = logging.getLogger(__name__)
@@ -26,10 +26,10 @@ def on_terminate(signum, stack) -> None:
 if __name__ == "__main__":
     signal.signal(signal.SIGTERM, on_terminate)
 
-    if sys.platform != "win32":
-        signal.signal(signal.SIGHUP, on_terminate)
-        signal.signal(signal.SIGCHLD, on_terminate)
-        signal.signal(signal.SIGALRM, on_terminate)
+#    if sys.platform != "win32":
+#        signal.signal(signal.SIGHUP, on_terminate)
+#        signal.signal(signal.SIGCHLD, on_terminate)
+#        signal.signal(signal.SIGALRM, on_terminate)
 
     logger.info("Daemon starting")
     try:

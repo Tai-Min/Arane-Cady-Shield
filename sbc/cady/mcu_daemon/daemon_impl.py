@@ -1,10 +1,10 @@
 """Daemon that manages communication with MCU"""
 from time import sleep
-from threading import Thread, Event
+from threading import Thread, Event, Lock
 import logging
 import subprocess
 import os
-import pyaml
+import yaml
 from MCUInstrument import MCUInstrument
 
 logger = logging.getLogger(__name__)
@@ -18,6 +18,7 @@ class Daemon:
     __mcu_err_evt: Event
 
     __heartbeat_thread: Thread
+    __process_mtx: Lock
 
     __instrument: MCUInstrument
     __game_sel = -1
@@ -27,6 +28,7 @@ class Daemon:
         self.__stop_evt = Event()
         self.__mcu_err_evt = Event()
         self.__heartbeat_thread = Thread(target=self.__heartbeat_task)
+        self.__process_mtx = Lock()
 
     def start(self, instrument_port: str, instrument_timeout: int, instrument_addr: int) -> None:
         """Start the daemon"""
@@ -46,6 +48,8 @@ class Daemon:
         """Stop the daemon"""
         if not self.__heartbeat_thread.is_alive():
             return
+
+        self.__kill_process()
 
         logger.info("Stopping MCU daemon")
 
@@ -68,11 +72,14 @@ class Daemon:
             shutdown_req = self.__instrument.get_shutdown_request()
             if shutdown_req:
                 logger.info("Shutdown requested via MCU, shutting down")
+
+                self.__kill_process()
+
                 os.system("shutdown -h now")
                 # script should exit on shutdown anyway and set some flags in MCU by doing so
 
             game_sel = self.__instrument.get_gamesel_value()
-            if game_sel != self.__game_sel:
+            if game_sel != self.__game_sel and game_sel >= 0:
                 logger.info("Game slot changed to %d", game_sel)
                 self.__game_sel = self.__load_game(game_sel)
 
@@ -90,11 +97,17 @@ class Daemon:
                 mcu_retries += 1
                 if mcu_retries >= self.__MCU_MAX_RETRIES:
                     logger.error("Couldn't communicate with MCU, aborting!")
-                    self.__mcu_err_evt.set()
+                    # self.__mcu_err_evt.set()
                 continue
 
             logger.debug("Received valid heartbeat from MCU")
             mcu_retries = 0
+
+    def __kill_process(self) -> None:
+        with self.__process_mtx:
+            if self.__process:
+                self.__process.kill()
+                self.__process = None
 
     def __load_game(self, slot: int) -> int:
         self.__instrument.set_display_state(False)
@@ -104,9 +117,9 @@ class Daemon:
         self.__enable_joys(0)
 
         # Unload previous slot
-        if self.__process:
-            self.__process.kill()
-            self.__process = None
+        self.__kill_process()
+
+        sleep(1)
 
         if slot < 0:
             logger.error("Invalid slot: %d", slot)
@@ -115,7 +128,7 @@ class Daemon:
         # Load slots.yaml
         try:
             with open("slots.yaml", "r", encoding="utf8") as f:
-                config = pyaml.yaml.safe_load(f)
+                config = yaml.safe_load(f)
 
         except FileNotFoundError as e:
             logger.error("slots.yaml not found: %s", str(e))
@@ -128,16 +141,16 @@ class Daemon:
         settle_time = 0.1
 
         # Use selected slot
-        slot = "slot" + str(slot)
+        slot_str = "slot" + str(slot)
         try:
-            name = str(config[slot]["name"])
-            num_players = int(config[slot]["players"])
-            open_script = str(config[slot]["open_script"])
+            name = str(config[slot_str]["name"])
+            num_players = int(config[slot_str]["players"])
+            open_script = str(config[slot_str]["open_script"])
 
-            joy1_brightness = int(config[slot]["joy1_brightness"])
-            joy2_brightness = int(config[slot]["joy2_brightness"])
+            joy1_brightness = int(config[slot_str]["joy1_brightness"])
+            joy2_brightness = int(config[slot_str]["joy2_brightness"])
 
-            settle_time = int(config[slot]["settle_time"])
+            settle_time = int(config[slot_str]["settle_time"])
 
         except Exception as e:
             logger.error("Processing yaml file failed: %s", str(e))
@@ -147,9 +160,10 @@ class Daemon:
         # Open process from selected slot
         logger.info("Opening %s", name)
         try:
-            self.__process = subprocess.Popen(open_script, shell=True)
+            with self.__process_mtx:
+                self.__process = subprocess.Popen(open_script, shell=True)
         except Exception as e:
-            logger.error("Failed to load %s", slot)
+            logger.error("Failed to load %s", slot_str)
             self.__game_sel = -1
             return -1
 
@@ -176,3 +190,5 @@ class Daemon:
         else:
             self.__instrument.set_joy1_state(False)
             self.__instrument.set_joy1_brightness(0)
+            self.__instrument.set_joy2_state(False)
+            self.__instrument.set_joy2_brightness(0)

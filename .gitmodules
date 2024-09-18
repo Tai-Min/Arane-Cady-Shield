@@ -1,6 +1,3 @@
 [submodule "mcu/controller/lib/MODBUS-Slave-Cpp"]
 	path = mcu/controller/lib/MODBUS-Slave-Cpp
 	url = https://github.com/Tai-Min/MODBUS-Slave-Cpp
-[submodule "mcu/controller/lib/Arane-Core"]
-	path = mcu/controller/lib/Arane-Core
-	url = https://github.com/Tai-Min/Arane-Core

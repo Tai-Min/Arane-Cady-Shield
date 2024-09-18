@@ -20,4 +20,14 @@ namespace Comm
      * @brief Returns whether MCU is connected to SBC via heartbeating.
     */
     bool connected();
+
+    /**
+     * @brief Reset connection status to disconnected.
+     */
+    void disconnect();
+
+    /**
+     * @brief Clear shutdown flag.
+     */
+    void clearShutdownFlag();
 }

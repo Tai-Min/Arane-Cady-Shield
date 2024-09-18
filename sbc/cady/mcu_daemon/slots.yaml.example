@@ -1,0 +1,7 @@
+slot16:
+  name: Retroarch
+  players: 2
+  open_script: "retroarch"
+  settle_time: 10
+  joy1_brightness: 255
+  joy2_brightness: 255

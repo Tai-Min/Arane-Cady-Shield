@@ -23,6 +23,8 @@ namespace Comm
     void init();
     void update();
     bool connected();
+    void disconnect();
+    void clearShutdownFlag();
 
     /**
      * @brief Update State.hpp variables with data from MODBUS server.
@@ -63,6 +65,19 @@ namespace Comm
     bool connected()
     {
         return g_connected;
+    }
+
+    void disconnect()
+    {
+        g_connected = false;
+        g_sbcHeartbeatRetries = 0;
+
+    }
+
+    void clearShutdownFlag()
+    {
+        g_server.digitalWrite(COIL, Config::Communication::Coils::Q_SHUTDOWN_FLAG_ADDR, false);
+        State::setShutdownFlag(false);
     }
 
     void updateState()
